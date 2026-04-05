@@ -1,5 +1,5 @@
 """
-Pure-Python analysis module for patient rehabilitation session data.
+Pure-Python analysis module for user rehabilitation session data.
 Computes per-exercise metrics, accuracy trends, and ML-based forecasting.
 """
 
@@ -17,7 +17,7 @@ ACCURACY_FLOOR = 0.0
 ACCURACY_CEILING = 100.0
 
 
-def analyse_patient(sessions: list[dict[str, Any]]) -> dict[str, Any]:
+def analyse_user(sessions: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Analyse a list of session dicts (matching SessionDataModel schema) and return
     structured metrics including per-exercise breakdown, trend classification,

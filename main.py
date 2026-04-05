@@ -23,7 +23,7 @@ from models import (
     SessionDataModel,
     SessionResponse,
 )
-from analysis import analyse_patient
+from analysis import analyse_user
 from ai_summary import generate_summary
 
 DB_PATH = os.environ.get("AGVR_DB_PATH", "agvr_sessions.db")
@@ -211,7 +211,7 @@ async def analyse_user_endpoint(user_id: str):
     if not raw:
         raise HTTPException(status_code=404, detail=f"No sessions found for user {user_id}")
 
-    analysis = analyse_patient(raw)
+    analysis = analyse_user(raw)
     ai_summary = await generate_summary(user_id, analysis)
 
     return AnalysisResponse(
@@ -229,7 +229,7 @@ async def forecast_user_endpoint(user_id: str):
     if not raw:
         raise HTTPException(status_code=404, detail=f"No sessions found for user {user_id}")
 
-    analysis = analyse_patient(raw)
+    analysis = analyse_user(raw)
 
     return ForecastResponse(
         userId=user_id,
