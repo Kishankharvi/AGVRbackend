@@ -19,7 +19,7 @@ from models import (
     ExerciseMetricModel,
     ForecastResponse,
     HealthResponse,
-    PatientSessionsResponse,
+    UserSessionsResponse,
     SessionDataModel,
     SessionResponse,
 )
@@ -36,7 +36,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             session_id TEXT PRIMARY KEY,
-            patient_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
             start_timestamp TEXT NOT NULL,
             end_timestamp TEXT NOT NULL,
             overall_accuracy REAL NOT NULL,
@@ -47,7 +47,7 @@ def init_db():
         )
     """)
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_patient_id ON sessions(patient_id)
+        CREATE INDEX IF NOT EXISTS idx_user_id ON sessions(user_id)
     """)
     conn.commit()
     conn.close()
@@ -75,15 +75,15 @@ app.add_middleware(
 )
 
 
-def _fetch_patient_sessions_raw(patient_id: str) -> list[dict]:
-    """Fetch raw session dicts from the database for a given patient."""
+def _fetch_user_sessions_raw(user_id: str) -> list[dict]:
+    """Fetch raw session dicts from the database for a given user."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT * FROM sessions WHERE patient_id = ? ORDER BY start_timestamp ASC",
-        (patient_id,),
+        "SELECT * FROM sessions WHERE user_id = ? ORDER BY start_timestamp ASC",
+        (user_id,),
     )
     rows = cursor.fetchall()
     conn.close()
@@ -93,7 +93,7 @@ def _fetch_patient_sessions_raw(patient_id: str) -> list[dict]:
         exercises = json.loads(row["exercises_json"])
         sessions.append({
             "sessionId": row["session_id"],
-            "patientId": row["patient_id"],
+            "userId": row["user_id"],
             "startTimestamp": row["start_timestamp"],
             "endTimestamp": row["end_timestamp"],
             "overallAccuracy": row["overall_accuracy"],
@@ -111,12 +111,12 @@ async def health_check():
     return HealthResponse(status="ok")
 
 
-@app.get("/api/patients", response_model=List[str])
-async def get_all_patients():
-    """Retrieve all unique patient IDs."""
+@app.get("/api/users", response_model=List[str])
+async def get_all_users():
+    """Retrieve all unique user IDs."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT patient_id FROM sessions ORDER BY patient_id ASC")
+    cursor.execute("SELECT DISTINCT user_id FROM sessions ORDER BY user_id ASC")
     rows = cursor.fetchall()
     conn.close()
     return [row[0] for row in rows]
@@ -145,13 +145,13 @@ async def create_session(session: SessionDataModel):
         cursor.execute(
             """
             INSERT INTO sessions
-            (session_id, patient_id, start_timestamp, end_timestamp,
+            (session_id, user_id, start_timestamp, end_timestamp,
              overall_accuracy, average_grip_strength, total_duration, exercises_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session.sessionId,
-                session.patientId,
+                session.userId,
                 session.startTimestamp,
                 session.endTimestamp,
                 session.overallAccuracy,
@@ -175,10 +175,10 @@ async def create_session(session: SessionDataModel):
     )
 
 
-@app.get("/api/patient/{patient_id}", response_model=PatientSessionsResponse)
-async def get_patient_sessions(patient_id: str):
-    """Retrieve all sessions for a given patient (newest first)."""
-    raw = _fetch_patient_sessions_raw(patient_id)
+@app.get("/api/user/{user_id}", response_model=UserSessionsResponse)
+async def get_user_sessions(user_id: str):
+    """Retrieve all sessions for a given user (newest first)."""
+    raw = _fetch_user_sessions_raw(user_id)
 
     sessions: List[SessionDataModel] = []
     for s in reversed(raw):
@@ -186,7 +186,7 @@ async def get_patient_sessions(patient_id: str):
         sessions.append(
             SessionDataModel(
                 sessionId=s["sessionId"],
-                patientId=s["patientId"],
+                userId=s["userId"],
                 startTimestamp=s["startTimestamp"],
                 endTimestamp=s["endTimestamp"],
                 overallAccuracy=s["overallAccuracy"],
@@ -196,43 +196,43 @@ async def get_patient_sessions(patient_id: str):
             )
         )
 
-    return PatientSessionsResponse(
-        patientId=patient_id,
+    return UserSessionsResponse(
+        userId=user_id,
         sessionCount=len(sessions),
         sessions=sessions,
     )
 
 
-@app.get("/api/patient/{patient_id}/analyse", response_model=AnalysisResponse)
-async def analyse_patient_endpoint(patient_id: str):
-    """Run ML analysis and Gemini AI summary for a patient."""
-    raw = _fetch_patient_sessions_raw(patient_id)
+@app.get("/api/user/{user_id}/analyse", response_model=AnalysisResponse)
+async def analyse_user_endpoint(user_id: str):
+    """Run ML analysis and Gemini AI summary for a user."""
+    raw = _fetch_user_sessions_raw(user_id)
 
     if not raw:
-        raise HTTPException(status_code=404, detail=f"No sessions found for patient {patient_id}")
+        raise HTTPException(status_code=404, detail=f"No sessions found for user {user_id}")
 
     analysis = analyse_patient(raw)
-    ai_summary = await generate_summary(patient_id, analysis)
+    ai_summary = await generate_summary(user_id, analysis)
 
     return AnalysisResponse(
-        patientId=patient_id,
+        userId=user_id,
         analysis=analysis,
         aiSummary=ai_summary,
     )
 
 
-@app.get("/api/patient/{patient_id}/forecast", response_model=ForecastResponse)
-async def forecast_patient_endpoint(patient_id: str):
-    """Return accuracy forecast and trend for a patient (lightweight, no AI call)."""
-    raw = _fetch_patient_sessions_raw(patient_id)
+@app.get("/api/user/{user_id}/forecast", response_model=ForecastResponse)
+async def forecast_user_endpoint(user_id: str):
+    """Return accuracy forecast and trend for a user (lightweight, no AI call)."""
+    raw = _fetch_user_sessions_raw(user_id)
 
     if not raw:
-        raise HTTPException(status_code=404, detail=f"No sessions found for patient {patient_id}")
+        raise HTTPException(status_code=404, detail=f"No sessions found for user {user_id}")
 
     analysis = analyse_patient(raw)
 
     return ForecastResponse(
-        patientId=patient_id,
+        userId=user_id,
         accuracy_trend=analysis["accuracy_trend"],
         forecast=analysis["forecast"],
     )

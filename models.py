@@ -15,7 +15,7 @@ class ExerciseMetricModel(BaseModel):
 
 class SessionDataModel(BaseModel):
     sessionId: str
-    patientId: str
+    userId: str
     startTimestamp: str
     endTimestamp: str
     overallAccuracy: float = Field(ge=0, le=100)
@@ -29,8 +29,8 @@ class SessionResponse(BaseModel):
     sessionId: str
 
 
-class PatientSessionsResponse(BaseModel):
-    patientId: str
+class UserSessionsResponse(BaseModel):
+    userId: str
     sessionCount: int
     sessions: List[SessionDataModel]
 
@@ -40,12 +40,12 @@ class HealthResponse(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
-    patientId: str
+    userId: str
     analysis: dict[str, Any]
     aiSummary: str
 
 
 class ForecastResponse(BaseModel):
-    patientId: str
+    userId: str
     accuracy_trend: str
     forecast: list[dict[str, Any]]
